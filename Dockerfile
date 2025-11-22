@@ -1,31 +1,28 @@
-# --- BUILD STAGE ---
-FROM oven/bun:1 AS builder
-
+# Multi-stage Dockerfile for typical Node.js apps (adjust node version if needed)
+FROM node:18-alpine AS builder
 WORKDIR /app
 
-# Copy everything
+# Copy package manifests and install dependencies
+COPY package*.json ./
+RUN npm ci
+
+# Copy source and run build if present
 COPY . .
+# If you have a build step (e.g. TypeScript/webpack), ensure a script named "build" exists
+RUN if [ -f package.json ] && npm run | grep -q ' build'; then npm run build; fi
 
-# Install deps
-RUN bun install --production
+# Remove dev deps (optional)
+RUN npm prune --production || true
 
-# Build the binary
-RUN bun build ./src/server.ts --compile --outfile copilot-api
-
-
-# --- RUNTIME STAGE ---
-FROM debian:bookworm-slim
-
+FROM node:18-alpine AS runner
 WORKDIR /app
 
-# Install CA certificates
-RUN apt-get update && apt-get install -y ca-certificates && update-ca-certificates
+# Copy files from builder
+COPY --from=builder /app /app
 
-# Copy binary from builder
-COPY --from=builder /app/copilot-api /app/copilot-api
+# Default port (override in run.claw.cloud)
+ENV PORT=8080
+EXPOSE 8080
 
-# Expose the default server port
-EXPOSE 4141
-
-# Run the binary
-ENTRYPOINT ["/app/copilot-api"]
+# Prefer start script; fallback to node index.js
+CMD ["sh", "-c", "npm run start --silent || node index.js"]
