@@ -3,11 +3,15 @@ FROM oven/bun:1 AS builder
 
 WORKDIR /app
 
-# Copy project files
+# Disable prepare script (simple-git-hooks)
+ENV SIMPLE_GIT_HOOKS=0
+ENV BUN_ENV=production
+
+# Copy all files
 COPY . .
 
-# Install production dependencies
-RUN bun install --production
+# Install dependencies without running prepare scripts
+RUN bun install --no-save
 
 # Build the executable binary
 RUN bun build ./src/server.ts --compile --outfile copilot-api
@@ -18,15 +22,13 @@ FROM debian:bookworm-slim
 
 WORKDIR /app
 
-# Install CA certificates
+# Install certs
 RUN apt-get update && apt-get install -y ca-certificates && update-ca-certificates && \
     apt-get clean && rm -rf /var/lib/apt/lists/*
 
-# Copy binary from builder
+# Copy binary
 COPY --from=builder /app/copilot-api /app/copilot-api
 
-# Expose default API port
 EXPOSE 4141
 
-# Start Copilot API
 ENTRYPOINT ["/app/copilot-api"]
