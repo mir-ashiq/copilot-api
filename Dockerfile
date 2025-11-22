@@ -1,25 +1,31 @@
-FROM oven/bun:1.2.19-alpine AS builder
+# --- BUILD STAGE ---
+FROM oven/bun:1 AS builder
+
 WORKDIR /app
 
-COPY ./package.json ./bun.lock ./
-RUN bun install --frozen-lockfile
-
+# Copy everything
 COPY . .
-RUN bun run build
 
-FROM oven/bun:1.2.19-alpine AS runner
+# Install deps
+RUN bun install --production
+
+# Build the binary
+RUN bun build ./src/server.ts --compile --outfile copilot-api
+
+
+# --- RUNTIME STAGE ---
+FROM debian:bookworm-slim
+
 WORKDIR /app
 
-COPY ./package.json ./bun.lock ./
-RUN bun install --frozen-lockfile --production --ignore-scripts --no-cache
+# Install CA certificates
+RUN apt-get update && apt-get install -y ca-certificates && update-ca-certificates
 
-COPY --from=builder /app/dist ./dist
+# Copy binary from builder
+COPY --from=builder /app/copilot-api /app/copilot-api
 
+# Expose the default server port
 EXPOSE 4141
 
-HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-  CMD wget --spider -q http://localhost:4141/ || exit 1
-
-COPY entrypoint.sh /entrypoint.sh
-RUN chmod +x /entrypoint.sh
-ENTRYPOINT ["/entrypoint.sh"]
+# Run the binary
+ENTRYPOINT ["/app/copilot-api"]
