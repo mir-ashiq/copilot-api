@@ -1,28 +1,48 @@
-# Multi-stage Dockerfile for typical Node.js apps (adjust node version if needed)
+# Multi-stage Dockerfile for a Bun-based project
+# Uses a lightweight Node base and installs Bun via the official installer script.
+# This keeps the image reproducible without depending on an external prebuilt bun image.
 FROM node:18-alpine AS builder
+
+# Install dependencies required to run the bun installer
+RUN apk add --no-cache curl bash
+
+# Install Bun (official installer)
+RUN curl -fsSL https://bun.sh/install | bash
+
+# Make bun available on PATH
+ENV BUN_INSTALL_DIR=/root/.bun
+ENV PATH="$BUN_INSTALL_DIR/bin:$PATH"
+
 WORKDIR /app
 
-# Copy package manifests and install dependencies
-COPY package*.json ./
-RUN npm ci
+# Copy package manifest and (if present) bun.lockb to allow reproducible installs
+COPY package.json package-lock.json* bun.lockb* ./
 
-# Copy source and run build if present
+# Install dependencies with bun
+# --production=false so devDependencies are available for build if needed
+RUN bun install --no-checks --no-save || bun install
+
+# Copy the rest of the source
 COPY . .
-# If you have a build step (e.g. TypeScript/webpack), ensure a script named "build" exists
-RUN if [ -f package.json ] && npm run | grep -q ' build'; then npm run build; fi
 
-# Remove dev deps (optional)
-RUN npm prune --production || true
+# Run the build if there is a build script
+RUN if bun run | grep -q ' build'; then bun run build; fi
 
+# Final runtime image
 FROM node:18-alpine AS runner
+RUN apk add --no-cache curl bash
+RUN curl -fsSL https://bun.sh/install | bash
+ENV BUN_INSTALL_DIR=/root/.bun
+ENV PATH="$BUN_INSTALL_DIR/bin:$PATH"
+
 WORKDIR /app
 
-# Copy files from builder
+# Copy built app and node_modules from builder
 COPY --from=builder /app /app
 
-# Default port (override in run.claw.cloud)
+# Use PORT environment variable (platform will set this)
 ENV PORT=8080
 EXPOSE 8080
 
-# Prefer start script; fallback to node index.js
-CMD ["sh", "-c", "npm run start --silent || node index.js"]
+# Run using the package.json start script (the repo's start uses bun)
+CMD ["bun", "run", "start"]
