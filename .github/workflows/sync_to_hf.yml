@@ -1,0 +1,42 @@
+name: Sync to Hugging Face
+
+on:
+  schedule:
+    - cron: '0 * * * *'
+  workflow_dispatch:
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - name: Pull from upstream
+        run: |
+          git remote add upstream https://github.com/caozhiyuan/copilot-api.git
+          git fetch upstream
+          git reset --hard upstream/main
+
+      - name: Remove unwanted files
+        run: |
+          rm -f README.md entrypoint.sh Dockerfile
+
+      - name: Restore HF custom files
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: |
+          git remote add hf https://imspsycho:${HF_TOKEN}@huggingface.co/spaces/imspsycho/copilot-api
+          git fetch hf main
+          git checkout hf/main -- README.md entrypoint.sh Dockerfile
+
+      - name: Commit & Push to HF
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: |
+          git config user.email "action@github.com"
+          git config user.name "GitHub Action"
+          git add -A
+          git diff --cached --quiet || git commit -m "chore: sync from upstream"
+          git push hf HEAD:main --force
