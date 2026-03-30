@@ -2,7 +2,7 @@ name: Sync to Hugging Face
 
 on:
   schedule:
-    - cron: '0 * * * *'
+    - cron: '0 * * * *'  # check every hour
   workflow_dispatch:
 
 jobs:
@@ -13,17 +13,31 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Pull from upstream
+      - name: Check if upstream has new commits
+        id: check
         run: |
           git remote add upstream https://github.com/caozhiyuan/copilot-api.git
           git fetch upstream
+          LOCAL=$(git rev-parse HEAD)
+          REMOTE=$(git rev-parse upstream/main)
+          if [ "$LOCAL" = "$REMOTE" ]; then
+            echo "changed=false" >> $GITHUB_OUTPUT
+          else
+            echo "changed=true" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Pull from upstream
+        if: steps.check.outputs.changed == 'true'
+        run: |
           git reset --hard upstream/main
 
       - name: Remove unwanted files
+        if: steps.check.outputs.changed == 'true'
         run: |
           rm -f README.md entrypoint.sh Dockerfile
 
       - name: Restore HF custom files
+        if: steps.check.outputs.changed == 'true'
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
         run: |
@@ -32,6 +46,7 @@ jobs:
           git checkout hf/main -- README.md entrypoint.sh Dockerfile
 
       - name: Commit & Push to HF
+        if: steps.check.outputs.changed == 'true'
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
         run: |
