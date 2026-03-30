@@ -19,7 +19,7 @@ jobs:
           git remote add upstream https://github.com/caozhiyuan/copilot-api.git
           git fetch upstream
           LOCAL=$(git rev-parse HEAD)
-          REMOTE=$(git rev-parse upstream/all)   # ← "all" branch
+          REMOTE=$(git rev-parse upstream/all)
           if [ "$LOCAL" = "$REMOTE" ]; then
             echo "changed=false" >> $GITHUB_OUTPUT
           else
@@ -29,7 +29,7 @@ jobs:
       - name: Pull from upstream
         if: steps.check.outputs.changed == 'true'
         run: |
-          git reset --hard upstream/all   # ← "all" branch
+          git reset --hard upstream/all
 
       - name: Remove unwanted files
         if: steps.check.outputs.changed == 'true'
@@ -41,7 +41,7 @@ jobs:
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
         run: |
-          git remote add hf https://imspsycho:${HF_TOKEN}@huggingface.co/spaces/imspsycho/copilot-api
+          git remote add hf https://oauth2:${HF_TOKEN}@huggingface.co/spaces/imspsycho/copilot-api
           git fetch hf main
           git checkout hf/main -- README.md entrypoint.sh Dockerfile
 
