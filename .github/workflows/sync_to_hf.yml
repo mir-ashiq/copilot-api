@@ -2,14 +2,14 @@ name: Sync to Hugging Face
 
 on:
   schedule:
-    - cron: '0 * * * *'  # check every hour
+    - cron: '0 * * * *'
   workflow_dispatch:
 
 jobs:
   sync:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
@@ -19,7 +19,7 @@ jobs:
           git remote add upstream https://github.com/caozhiyuan/copilot-api.git
           git fetch upstream
           LOCAL=$(git rev-parse HEAD)
-          REMOTE=$(git rev-parse upstream/main)
+          REMOTE=$(git rev-parse upstream/all)   # ← "all" branch
           if [ "$LOCAL" = "$REMOTE" ]; then
             echo "changed=false" >> $GITHUB_OUTPUT
           else
@@ -29,7 +29,7 @@ jobs:
       - name: Pull from upstream
         if: steps.check.outputs.changed == 'true'
         run: |
-          git reset --hard upstream/main
+          git reset --hard upstream/all   # ← "all" branch
 
       - name: Remove unwanted files
         if: steps.check.outputs.changed == 'true'
